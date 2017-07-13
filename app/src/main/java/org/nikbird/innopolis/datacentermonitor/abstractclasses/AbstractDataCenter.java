@@ -9,6 +9,7 @@ import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -27,7 +28,7 @@ public abstract class AbstractDataCenter implements IDataCenter {
     private Context mContext;
     private Handler mHandler;
 
-    private Set<IServer> mServers = new HashSet<>();
+    private Set<IServer> mServers;
     private int mRackCount;
     private int mRackCapacity;
     private List<IListener> mListeners;
@@ -39,6 +40,8 @@ public abstract class AbstractDataCenter implements IDataCenter {
             return false;
         mContext = context;
         mHandler = new Handler();
+        mServers = new HashSet<>();
+        mListeners = new ArrayList<>();
         return true;
     }
 
@@ -123,5 +126,10 @@ public abstract class AbstractDataCenter implements IDataCenter {
     @Override
     public int getServerCount() {
         return mServers.size();
+    }
+
+    @Override
+    public Iterator<IServer> iterator() {
+        return mServers.iterator();
     }
 }

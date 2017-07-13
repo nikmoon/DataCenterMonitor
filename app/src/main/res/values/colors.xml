@@ -3,4 +3,6 @@
     <color name="colorPrimary">#3F51B5</color>
     <color name="colorPrimaryDark">#303F9F</color>
     <color name="colorAccent">#FF4081</color>
+    <color name="colorDatacenterRoom">#71816f</color>
+    <color name="colorRack">#173467</color>
 </resources>

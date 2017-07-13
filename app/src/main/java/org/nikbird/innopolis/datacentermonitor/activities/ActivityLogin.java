@@ -1,7 +1,9 @@
 package org.nikbird.innopolis.datacentermonitor.activities;
 
+import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.View;
 
 import org.nikbird.innopolis.datacentermonitor.LocalDataCenter;
 import org.nikbird.innopolis.datacentermonitor.R;
@@ -16,5 +18,9 @@ public class ActivityLogin extends AppCompatActivity {
 
         AbstractDataCenter.setDataCenter(LocalDataCenter.getInstance());
         AbstractDataCenter.getDataCenter().start(getApplicationContext());
+    }
+
+    public void startMonitoring(View view) {
+        startActivity(new Intent(this, ActivityDataCenter.class));
     }
 }

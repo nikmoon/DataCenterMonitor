@@ -1,7 +1,6 @@
 package org.nikbird.innopolis.datacentermonitor;
 
 import android.content.Context;
-import android.view.View;
 
 import org.nikbird.innopolis.datacentermonitor.abstractclasses.AbstractDataCenter;
 import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
@@ -19,19 +18,19 @@ public class LocalDataCenter extends AbstractDataCenter {
 
     private static class Server implements IServer {
 
-        private int mRackNumer;
+        private int mRackNumber;
         private int mNumber;
         private State mState;
 
         public Server(int rackNumber, int number, State state) {
-            mRackNumer = rackNumber;
+            mRackNumber = rackNumber;
             mNumber = number;
             mState = state;
         }
 
         @Override
         public int hashCode() {
-            int result = 37 * 3 + Objects.hashCode(mRackNumer);
+            int result = 37 * 3 + Objects.hashCode(mRackNumber);
             result = 37 * result + Objects.hashCode(mNumber);
             return result;
         }
@@ -41,24 +40,24 @@ public class LocalDataCenter extends AbstractDataCenter {
             if (obj == null || !(obj instanceof IServer))
                 return false;
             IServer server = (IServer) obj;
-            return mRackNumer == server.getRackNumber()
+            return mRackNumber == server.getRackNumber()
                     && mNumber == server.getNumber()
                     && mState == server.getState();
         }
 
         @Override
         public int getRackNumber() {
-            return 0;
+            return mRackNumber;
         }
 
         @Override
         public int getNumber() {
-            return 0;
+            return mNumber;
         }
 
         @Override
         public State getState() {
-            return null;
+            return mState;
         }
     }
 

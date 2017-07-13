@@ -8,7 +8,7 @@ import java.util.List;
  * Created by nikbird on 11.07.17.
  */
 
-public interface IDataCenter {
+public interface IDataCenter extends Iterable<IServer> {
 
     interface IListener {
         void onServerStateChanged(IServer server, IServer.State statePrev);
