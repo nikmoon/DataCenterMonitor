@@ -2,6 +2,8 @@ package org.nikbird.innopolis.datacentermonitor.interfaces;
 
 import android.content.Context;
 
+import java.util.List;
+
 /**
  * Created by nikbird on 11.07.17.
  */
@@ -13,12 +15,15 @@ public interface IDataCenter {
         void onReplicationComplete(IDataCenter dataCenter);
     }
 
-    boolean startDataCenter(Context context);
+    boolean start(Context context);
     boolean isReplicationComplete();
     void setEventListener(IListener listener);
+    void removeEventListener(IListener listener);
 
-    IServer[] getFailedServers();
+    List<IServer> getFailedServers(List<IServer> buffer);
+    List<IServer> getFailedServers();
 
+    Context getContext();
     int getRackCount();
     int getRackCapacity();
     int getServerCount();

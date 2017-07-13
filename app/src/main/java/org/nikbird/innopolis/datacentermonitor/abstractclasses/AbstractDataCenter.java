@@ -1,10 +1,13 @@
 package org.nikbird.innopolis.datacentermonitor.abstractclasses;
 
 import android.content.Context;
+import android.os.Handler;
 
+import org.nikbird.innopolis.datacentermonitor.LocalDataCenter;
 import org.nikbird.innopolis.datacentermonitor.interfaces.IDataCenter;
 import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -15,19 +18,27 @@ import java.util.Set;
 
 public abstract class AbstractDataCenter implements IDataCenter {
 
+    private static IDataCenter sDataCenter = LocalDataCenter.getInstance();
+    public static final IDataCenter getDataCenter() { return sDataCenter; }
+    public static final void setDataCenter(IDataCenter dataCenter) {
+        sDataCenter = dataCenter;
+    }
+
     private Context mContext;
+    private Handler mHandler;
 
     private Set<IServer> mServers = new HashSet<>();
     private int mRackCount;
     private int mRackCapacity;
-    private IListener mListener;
+    private List<IListener> mListeners;
     private boolean mReplicationComplete = false;
 
     @Override
-    public synchronized boolean startDataCenter(Context context) {
+    public boolean start(Context context) {
         if (mContext != null)
             return false;
         mContext = context;
+        mHandler = new Handler();
         return true;
     }
 
@@ -36,8 +47,14 @@ public abstract class AbstractDataCenter implements IDataCenter {
         return mReplicationComplete;
     }
 
-    protected void setReplicationComplete() {
+    protected void notifyReplicationComplete() {
         mReplicationComplete = true;
+        for(IListener listener: mListeners)
+            listener.onReplicationComplete(this);
+    }
+
+    protected void postNotification(Runnable action) {
+        mHandler.post(action);
     }
 
     protected Set<IServer> getServers() {
@@ -53,6 +70,25 @@ public abstract class AbstractDataCenter implements IDataCenter {
     }
 
     @Override
+    public List<IServer> getFailedServers(List<IServer> failedServers) {
+        for(IServer server: getServers()) {
+            if (server.getState() == IServer.State.FAIL)
+                failedServers.add(server);
+        }
+        return failedServers;
+    }
+
+    @Override
+    public List<IServer> getFailedServers() {
+        return getFailedServers(new ArrayList<IServer>());
+    }
+
+    @Override
+    public Context getContext() {
+        return mContext;
+    }
+
+    @Override
     public int getRackCount() {
         return mRackCount;
     }
@@ -63,7 +99,16 @@ public abstract class AbstractDataCenter implements IDataCenter {
 
     @Override
     public void setEventListener(IListener listener) {
-        mListener = listener;
+        mListeners.add(listener);
+    }
+
+    @Override
+    public void removeEventListener(IListener listener) {
+        for (int i = 0, count = mListeners.size(); i < count; i++)
+            if (mListeners.get(i) == listener) {
+                mListeners.remove(i);
+                break;
+            }
     }
 
     @Override
