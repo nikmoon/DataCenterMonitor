@@ -26,6 +26,11 @@ public class RemoteDataCenter extends AbstractDataCenter {
     }
 
     @Override
+    public void deliveryDataCenterInfo(int rackCount, int rackCapacity, int[] rackNums, int[] serverNums, IServer.State[] states) {
+
+    }
+
+    @Override
     public void repairServer(IServer server) {
 
     }

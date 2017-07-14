@@ -15,9 +15,7 @@ public class ActivityLogin extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-
         AbstractDataCenter.setDataCenter(LocalDataCenter.getInstance());
-        AbstractDataCenter.getDataCenter().start(getApplicationContext());
     }
 
     public void startMonitoring(View view) {

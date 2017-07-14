@@ -1,5 +1,6 @@
 package org.nikbird.innopolis.datacentermonitor.abstractclasses;
 
+import android.app.Service;
 import android.content.Context;
 import android.os.Handler;
 
@@ -25,6 +26,8 @@ public abstract class AbstractDataCenter implements IDataCenter {
         sDataCenter = dataCenter;
     }
 
+    public static final String SERVICE_TASK_TAG = "datacentermonitor.servicetask";
+
     private Context mContext;
     private Handler mHandler;
 
@@ -33,6 +36,12 @@ public abstract class AbstractDataCenter implements IDataCenter {
     private int mRackCapacity;
     private List<IListener> mListeners;
     private boolean mReplicationComplete = false;
+
+    public enum ServiceTask {
+        DELIVERY_STRUCTURE,
+        DELIVERY_SERVER_EVENT
+    }
+
 
     @Override
     public boolean start(Context context) {
@@ -50,14 +59,26 @@ public abstract class AbstractDataCenter implements IDataCenter {
         return mReplicationComplete;
     }
 
+
+    public abstract void deliveryDataCenterInfo(int rackCount, int rackCapacity, int[] rackNums, int[] serverNums, IServer.State[] states);
+
     protected void notifyReplicationComplete() {
         mReplicationComplete = true;
         for(IListener listener: mListeners)
             listener.onReplicationComplete(this);
     }
 
+    protected void notifyServerStateChanged(IServer server, IServer.State prevState) {
+        for(IListener listener: mListeners) {
+            listener.onServerStateChanged(server, prevState);
+        }
+    }
+
     protected void postNotification(Runnable action) {
         mHandler.post(action);
+    }
+    protected void postNotification(Runnable action, long delayMillis) {
+        mHandler.postDelayed(action, delayMillis);
     }
 
     protected Set<IServer> getServers() {

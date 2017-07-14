@@ -1,10 +1,14 @@
 package org.nikbird.innopolis.datacentermonitor.activities;
 
+import android.os.Bundle;
 import android.support.constraint.ConstraintLayout;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.Toast;
 
+import org.nikbird.innopolis.datacentermonitor.LocalDataCenter;
 import org.nikbird.innopolis.datacentermonitor.R;
 import org.nikbird.innopolis.datacentermonitor.abstractclasses.ActivityListener;
 import org.nikbird.innopolis.datacentermonitor.interfaces.IDataCenter;
@@ -23,17 +27,30 @@ public class ActivityDataCenter extends ActivityListener implements View.OnClick
     private List<ViewGroup> mRackViews;
 
     @Override
-    public void onServerStateChanged(IServer server, IServer.State statePrev) {
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+    }
 
+    @Override
+    public void onServerStateChanged(IServer server, IServer.State statePrev) {
+        ImageButton serverView = (ImageButton) mServerViews.get(server);
+        switch (server.getState()) {
+            case FAIL:
+                serverView.setImageResource(R.drawable.server_fail_120);
+                break;
+            case GOOD:
+                serverView.setImageResource(R.drawable.server_ok_120);
+                break;
+        }
     }
 
     private ImageButton newButton(int imageResId) {
         ImageButton button = new ImageButton(this);
 
-//        button.setScaleType(ImageView.ScaleType.FIT_CENTER);
-//        button.setAdjustViewBounds(true);
+        button.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        button.setAdjustViewBounds(true);
 
-//        button.setImageResource(imageResId);
+        button.setImageResource(imageResId);
         button.setId(View.generateViewId());
         return button;
     }
@@ -51,28 +68,28 @@ public class ActivityDataCenter extends ActivityListener implements View.OnClick
         mRackViews.add(rackView);
 
         ConstraintLayout.LayoutParams params = new ConstraintLayout.LayoutParams(
-                200, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.horizontalWeight = 1;
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT, ViewGroup.LayoutParams.WRAP_CONTENT);
 
         if (mRackViews.size() == 1) {
             params.topToTop = mDataCenterLayout.getId();
             params.leftToLeft = mDataCenterLayout.getId();
-            params.setMargins(0, 20, 0, 20);
+            params.topMargin = 20;
+            params.leftMargin = 20;
         } else {
             int div2Rem = mRackViews.size() % 2;
-            if (div2Rem == 0) {
+            if (div2Rem == 0) { // стойка во второй колонке
                 ViewGroup leftRackView = mRackViews.get(mRackViews.size() - 2);
-                ((ConstraintLayout.LayoutParams)leftRackView.getLayoutParams()).rightToLeft = rackId;
-
-                params.leftToRight = leftRackView.getId();
                 params.topToTop = leftRackView.getId();
-                params.rightToRight = mDataCenterLayout.getId();
-//                params.setMargins(0, 0, 0, 20);
-            } else {
+                params.bottomToBottom = leftRackView.getId();
+                params.leftToRight = leftRackView.getId();
+                params.leftMargin = 20;
+            } else { // стойка в первой колонке
                 ViewGroup topRackView = mRackViews.get(mRackViews.size() - 3);
                 params.topToBottom = topRackView.getId();
-                params.leftToLeft = mDataCenterLayout.getId();
-                params.setMargins(0, 20, 0, 0);
+                params.leftToLeft = topRackView.getId();
+                params.rightToRight = topRackView.getId();
+                params.topMargin = 20;
+                params.bottomMargin = 20;
             }
         }
         mDataCenterLayout.addView(rackView, params);
@@ -83,9 +100,9 @@ public class ActivityDataCenter extends ActivityListener implements View.OnClick
         ImageButton serverView;
 
         if (server.getState() == IServer.State.GOOD)
-            serverView = newButton(R.drawable.server_ok);
+            serverView = newButton(R.drawable.server_ok_120);
         else
-            serverView = newButton(R.drawable.server_fail);
+            serverView = newButton(R.drawable.server_fail_120);
 
         serverView.setOnClickListener(this);
         return serverView;
@@ -101,17 +118,13 @@ public class ActivityDataCenter extends ActivityListener implements View.OnClick
                 continue;
             ImageButton serverView = (ImageButton) mServerViews.get(server);
             ConstraintLayout.LayoutParams params = new ConstraintLayout.LayoutParams(
-//                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                    100, 50);
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             if (topServerView == null) {
                 params.topToTop = rackView.getId();
                 params.leftToLeft = rackView.getId();
-                params.setMargins(0, 0, 0, 0);
             } else {
                 params.topToBottom = topServerView.getId();
                 params.leftToLeft = topServerView.getId();
-                params.setMargins(0, 0, 0, 0);
-
             }
             rackView.addView(serverView, params);
             topServerView = serverView;
@@ -121,7 +134,6 @@ public class ActivityDataCenter extends ActivityListener implements View.OnClick
     @Override
     public void onReplicationComplete(IDataCenter dataCenter) {
         setContentView(R.layout.activity_data_center);
-        mDataCenter.setEventListener(this);
         mServerViews = new HashMap<>();
         mRackViews = new ArrayList<>();
 
@@ -132,7 +144,6 @@ public class ActivityDataCenter extends ActivityListener implements View.OnClick
         // создаем вьюшки для стоек
         List<IServer[]> racks = new ArrayList<>(rackCount);
         for(int rackNum = 1; rackNum <= rackCount; rackNum++) {
-//            addNewRackView(0.5f);
             addNewRackView2Rows();
             racks.add(new IServer[rackCapacity]);
         }
@@ -150,34 +161,16 @@ public class ActivityDataCenter extends ActivityListener implements View.OnClick
         for(int rackNum = 1; rackNum <= rackCount; rackNum++) {
             insertServersInRack(mRackViews.get(rackNum - 1), racks.get(rackNum - 1));
         }
-
-
-//        ImageButton btnOkServer = newButton(R.drawable.server_ok);
-//        ImageButton btnFailServer = newButton(R.drawable.server_fail);
-//
-//        ConstraintLayout.LayoutParams layoutParams = new ConstraintLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-//                ViewGroup.LayoutParams.WRAP_CONTENT);
-//        layoutParams.setMargins(0, 0, 0, 0);
-//
-//        ltDataCenterRoom.addView(btnOkServer, layoutParams);
-//
-//        layoutParams = new ConstraintLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
-//                ViewGroup.LayoutParams.WRAP_CONTENT);
-//        layoutParams.setMargins(0, 0, 0, 0);
-//        layoutParams.topToBottom = btnOkServer.getId();
-//        layoutParams.leftToLeft = btnOkServer.getId();
-//
-//        ltDataCenterRoom.addView(btnFailServer, layoutParams);
-
-        // отрисовываем стойки и сервера
+        mDataCenter.setEventListener(this);
     }
 
     public void onClick(View view) {
-//        int width = view.getWidth();
-//        ViewGroup parent = (ViewGroup) view.getParent();
-//        float scale = parent.getScaleX() + 0.03f;
-//        parent.setScaleX(scale);
-//        parent.setScaleY(scale);
-//        mDataCenterLayout.requestLayout();
+        for(Map.Entry<IServer, View> entry: mServerViews.entrySet()) {
+            if (entry.getValue() == view) {
+                IServer server = entry.getKey();
+                ((LocalDataCenter)mDataCenter).testServerStateChanged(server);
+                break;
+            }
+        }
     }
 }

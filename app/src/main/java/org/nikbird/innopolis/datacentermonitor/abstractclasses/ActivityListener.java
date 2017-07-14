@@ -18,9 +18,11 @@ public abstract class ActivityListener extends AppCompatActivity implements IDat
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mDataCenter = AbstractDataCenter.getDataCenter();
-        if (mDataCenter.isReplicationComplete()) {
+        mDataCenter.start(getApplicationContext());
+        if (mDataCenter.isReplicationComplete())
             onReplicationComplete(mDataCenter);
-        }
+        else
+            mDataCenter.setEventListener(this);
     }
 
     @Override
