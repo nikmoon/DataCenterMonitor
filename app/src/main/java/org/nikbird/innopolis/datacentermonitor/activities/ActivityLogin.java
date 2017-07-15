@@ -8,6 +8,7 @@ import android.view.View;
 import org.nikbird.innopolis.datacentermonitor.LocalDataCenter;
 import org.nikbird.innopolis.datacentermonitor.R;
 import org.nikbird.innopolis.datacentermonitor.abstractclasses.AbstractDataCenter;
+import org.nikbird.innopolis.datacentermonitor.services.ServiceDataCenter;
 
 public class ActivityLogin extends AppCompatActivity {
 
@@ -15,10 +16,16 @@ public class ActivityLogin extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-        AbstractDataCenter.setDataCenter(LocalDataCenter.getInstance());
     }
 
     public void startMonitoring(View view) {
+        AbstractDataCenter.setDataCenter(LocalDataCenter.getInstance());
         startActivity(new Intent(this, ActivityDataCenter.class));
     }
+
+    public void startDataCenter(View view) {
+        Intent intent = new Intent(this, ServiceDataCenter.class);
+        startService(intent);
+    }
+
 }

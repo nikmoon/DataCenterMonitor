@@ -10,6 +10,7 @@ public interface IServer {
         FAIL
     }
 
+    String toString();
     int getRackNumber();
     int getNumber();
     State getState();
