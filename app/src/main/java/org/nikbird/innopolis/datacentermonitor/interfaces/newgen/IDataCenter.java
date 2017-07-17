@@ -16,7 +16,7 @@ public interface IDataCenter {
         void onServerAdded(IServer server);
         void onServerRemoved(IServer server, IServer.ServerPosition prevPosition);
         void onServerStateChanged(IServer server, IServer.State prevState);
-        void onReplicationComplete();
+        void onReplicationEvent();
     }
 
     void authentication(String username, String password, String url);
@@ -27,10 +27,11 @@ public interface IDataCenter {
     void removeEventListener(IListener listener);
 
 
-
     boolean isReplicationComplete();
+    String replicationErrorMessage();
+
     boolean hasProblem();
 
     List<IServer> getProblemServers();
-    Iterator<IRack> rackIterator();
+    Iterable<IRack> rackIterable();
 }

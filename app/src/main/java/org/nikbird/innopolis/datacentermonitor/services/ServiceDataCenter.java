@@ -11,9 +11,9 @@ import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IDataCenter;
 import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IRack;
 import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServer;
 import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServerRoom;
+import org.nikbird.innopolis.datacentermonitor.models.ServerRoom;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -22,7 +22,6 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -54,7 +53,6 @@ public class ServiceDataCenter extends Service implements IDataCenter {
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        Toast.makeText(this, "Datacenter service started", Toast.LENGTH_SHORT).show();
         return super.onStartCommand(intent, flags, startId);
     }
 
@@ -92,6 +90,7 @@ public class ServiceDataCenter extends Service implements IDataCenter {
     @Override public String authErrorMessage() { return mAuthErrorMessage; }
 
     @Override public void authentication(String username, String password, String urlString) {
+        mAuthenticated = false;
         mAuthErrorMessage = null;
         URL urlAuth;
         try {
@@ -106,22 +105,29 @@ public class ServiceDataCenter extends Service implements IDataCenter {
             @Override public void run() {
                 mRequestResultLock.readLock().lock();
                 try {
+                    String responseString;
                     if (mRequestErrorMsg == null) {
-                        if (mResponseStatus == HttpURLConnection.HTTP_OK) {
-                            mAuthToken = mResponse.get(0).split(":")[1].trim();
+                        responseString = mResponse.get(0);
+                        if (responseString.startsWith("token:")) {
+                            mAuthToken = responseString.split(":")[1].trim();
+                            mAuthenticated = true;
+                            if (!mReplicationInProgress)
+                                replicate();
                         } else {
-                            mAuthErrorMessage = mResponse.get(0);
+                            mAuthErrorMessage = responseString;
                         }
                     } else {
                         mAuthErrorMessage = mRequestErrorMsg;
                     }
+                } catch (Exception e) {
+                    mAuthErrorMessage = "Error parsing server response";
                 } finally {
                     mRequestResultLock.readLock().unlock();
                 }
                 notifyAuthenticationEvent();
             }
         };
-        if ("http".equals(urlAuth.getProtocol()))
+        if ("http".equals(mUrl.getProtocol()))
             httpRequest(urlAuth, new String[] {"username:" + username, "password:" + password}, onAuthResult);
         else {
             mAuthErrorMessage = "Unknown URL protocol";
@@ -129,45 +135,86 @@ public class ServiceDataCenter extends Service implements IDataCenter {
         }
     }
 
+    private boolean mReplicationInProgress;
+    private String mReplicationErrorMsg;
+    @Override public String replicationErrorMessage() { return mReplicationErrorMsg; }
+
+    private void replicate() {
+        mReplicationInProgress = true;
+        mReplicationComplete = false;
+        mReplicationErrorMsg = null;
+
+        Runnable onResult = new Runnable() {
+            @Override
+            public void run() {
+                mRequestResultLock.readLock().lock();
+                try {
+                    if (mRequestErrorMsg == null) {
+                        mServerRoom = new ServerRoom(Integer.valueOf(mResponse.get(0).split(":")[1]));
+                        mReplicationComplete = true;
+                    } else
+                        mReplicationErrorMsg = mRequestErrorMsg;
+                } catch (Exception e) {
+                    mReplicationErrorMsg = "Exception: " + e.getMessage();
+                }
+                finally {
+                    mRequestResultLock.readLock().unlock();
+                }
+                mHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        replicate();
+                    }
+                }, 10000);
+                notifyReplicationComplete();
+            }
+        };
+        if ("http".equals(mUrl.getProtocol())) {
+            httpRequest(mUrl, new String[] {"token:" + mAuthToken}, onResult);
+        }
+    }
+
     @Override public boolean isAuthenticated() { return mAuthenticated; }
     @Override public boolean isReplicationComplete() { return mReplicationComplete; }
     @Override public boolean hasProblem() { return mProblemServers.size() > 0; }
     @Override public List<IServer> getProblemServers() { return mProblemServers; }
-    @Override public Iterator<IRack> rackIterator() { return mServerRoom.iterator(); }
+    @Override public Iterable<IRack> rackIterable() { return mServerRoom; }
 
     private String mRequestErrorMsg;
     private int mResponseStatus;
     private List<String> mResponse;
     private final ReadWriteLock mRequestResultLock = new ReentrantReadWriteLock();
 
-    private void httpRequest(final URL url, final String[] request, final Runnable onResult) {
+    private void httpRequest(final URL url, final String[] requestBody, final Runnable onResult) {
         new Thread(new Runnable() {
+
+            private String mLine;
+            private BufferedReader mReader;
+
             @Override
             public void run() {
+                mRequestErrorMsg = null;
                 try {
                     mRequestResultLock.writeLock().lock();
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    if (request != null && request.length > 0) {
+                    if (requestBody != null && requestBody.length > 0) {
                         conn.setDoOutput(true);
                         Writer writer = new OutputStreamWriter(conn.getOutputStream());
-                        for (int i = 0; i < request.length; i++) {
-                            writer.write(request[i]);
-                        }
+                        for (int i = 0; i < requestBody.length; i++)
+                            writer.write(requestBody[i] + "\n");
                         writer.close();
                     }
 
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    String line;
-                    mResponse = new ArrayList<>();
-                    while ((line = reader.readLine()) != null) {
-                        mResponse.add(line);
-                    }
                     mResponseStatus = conn.getResponseCode();
-                    mRequestErrorMsg = null;
+                    mReader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    mResponse = new ArrayList<>();
+                    while ((mLine = mReader.readLine()) != null) {
+                        mResponse.add(mLine);
+                    }
                 } catch (IOException e) {
-                    mRequestErrorMsg = "Connection error: " + e.getMessage();
+                    mRequestErrorMsg = "IOException: " + e.getMessage();
                 } catch (Exception e) {
-                    mRequestErrorMsg = "Connection error: " + e.getMessage();
+                    mRequestErrorMsg = "Exception: " + e.getMessage();
                 } finally {
                     mRequestResultLock.writeLock().unlock();
                     mHandler.post(onResult);
@@ -177,12 +224,13 @@ public class ServiceDataCenter extends Service implements IDataCenter {
     }
 
     private void notifyAuthenticationEvent() {
-        mHandler.post(new Runnable() {
-            @Override public void run() {
-                for (IListener subscriber : mSubscribers) {
-                    subscriber.onAuthenticationEvent();
-                }
-            }
-        });
+        for (IListener subscriber : mSubscribers)
+            subscriber.onAuthenticationEvent();
+    }
+
+    private void notifyReplicationComplete() {
+        for (IListener subscriber : mSubscribers) {
+            subscriber.onReplicationEvent();
+        }
     }
 }

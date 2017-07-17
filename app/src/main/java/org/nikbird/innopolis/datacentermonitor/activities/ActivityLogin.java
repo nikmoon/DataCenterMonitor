@@ -29,9 +29,7 @@ public class ActivityLogin extends AppCompatActivity implements IDataCenter.ILis
             mLoginButton.setEnabled(true);
         }
 
-        @Override public void onServiceDisconnected(ComponentName componentName) {
-
-        }
+        @Override public void onServiceDisconnected(ComponentName componentName) {}
     };
 
     private ConstraintLayout mLayoutLoginFields;
@@ -72,11 +70,11 @@ public class ActivityLogin extends AppCompatActivity implements IDataCenter.ILis
     }
 
     public void onLoginClick(final View view) {
-        if (!isLoginDataValid())
-            return;
-        mLayoutLoginFields.setVisibility(View.INVISIBLE);
-        mProgressBar.setVisibility(View.VISIBLE);
-        mDataCenter.authentication(mUsername, mPassword, mUrl);
+        if (isLoginDataValid()) {
+            mLayoutLoginFields.setVisibility(View.INVISIBLE);
+            mProgressBar.setVisibility(View.VISIBLE);
+            mDataCenter.authentication(mUsername, mPassword, mUrl);
+        }
     }
 
     @Override
@@ -86,14 +84,14 @@ public class ActivityLogin extends AppCompatActivity implements IDataCenter.ILis
         else {
             mProgressBar.setVisibility(View.INVISIBLE);
             mLayoutLoginFields.setVisibility(View.VISIBLE);
-            Toast.makeText(this, mDataCenter.authErrorMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, mDataCenter.authErrorMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
     @Override public void onServerAdded(IServer server) {}
     @Override public void onServerRemoved(IServer server, IServer.ServerPosition prevPosition) {}
     @Override public void onServerStateChanged(IServer server, IServer.State prevState) {}
-    @Override public void onReplicationComplete() {}
+    @Override public void onReplicationEvent() {}
 
     private boolean isLoginDataValid() {
         mUrl = mUrlField.getText().toString();
