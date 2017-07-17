@@ -12,19 +12,25 @@ import java.util.List;
 public interface IDataCenter {
 
     interface IListener {
+        void onAuthenticationEvent();
         void onServerAdded(IServer server);
         void onServerRemoved(IServer server, IServer.ServerPosition prevPosition);
         void onServerStateChanged(IServer server, IServer.State prevState);
         void onReplicationComplete();
     }
 
+    void authentication(String username, String password, String url);
+    boolean isAuthenticated();
+    String authErrorMessage();
+
     void setEventListener(IListener listener);
     void removeEventListener(IListener listener);
 
-    boolean isAuthenticated();
+
+
     boolean isReplicationComplete();
     boolean hasProblem();
 
+    List<IServer> getProblemServers();
     Iterator<IRack> rackIterator();
-    void authentication(Runnable onResult);
 }

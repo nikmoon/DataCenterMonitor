@@ -13,8 +13,5 @@ public class ActivityDataCenter extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_data_center2);
-
-        Intent intent = new Intent(this, ServiceDataCenter.class);
-        startService(new Intent(this, ServiceDataCenter.class));
     }
 }
