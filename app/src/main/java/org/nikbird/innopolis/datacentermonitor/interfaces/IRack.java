@@ -1,4 +1,4 @@
-package org.nikbird.innopolis.datacentermonitor.interfaces.newgen;
+package org.nikbird.innopolis.datacentermonitor.interfaces;
 
 import java.util.Iterator;
 

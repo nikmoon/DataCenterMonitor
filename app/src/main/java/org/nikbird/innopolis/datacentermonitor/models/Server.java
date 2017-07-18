@@ -1,6 +1,6 @@
 package org.nikbird.innopolis.datacentermonitor.models;
 
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServer;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
 
 /**
  * Created by nikbird on 14.07.17.

@@ -1,33 +1,35 @@
 package org.nikbird.innopolis.datacentermonitor.interfaces;
 
-import android.content.Context;
-
 import java.util.List;
 
 /**
  * Created by nikbird on 11.07.17.
  */
 
-public interface IDataCenter extends Iterable<IServer> {
+public interface IDataCenter {
 
     interface IListener {
-        void onServerStateChanged(IServer server, IServer.State statePrev);
-        void onReplicationComplete(IDataCenter dataCenter);
+        void onAuthenticationEvent();
+        void onServerAdded(IServer server);
+        void onServerRemoved(IServer server, IServer.ServerPosition prevPosition);
+        void onServerStateChanged(IServer server, IServer.State prevState);
+        void onReplicationEvent();
     }
 
-    boolean start(Context context);
-    boolean isReplicationComplete();
+    void authentication(String username, String password, String url);
+    boolean isAuthenticated();
+    String authErrorMessage();
+
     void setEventListener(IListener listener);
     void removeEventListener(IListener listener);
 
-    List<IServer> getFailedServers(List<IServer> buffer);
-    List<IServer> getFailedServers();
 
-    Context getContext();
-    int getRackCount();
-    int getRackCapacity();
-    int getServerCount();
+    boolean isReplicationComplete();
+    String replicationErrorMessage();
 
-    void repairServer(IServer server);
+    boolean hasProblem();
+
+    int countRacks();
+    List<IServer> getProblemServers();
+    Iterable<IRack> rackIterable();
 }
-

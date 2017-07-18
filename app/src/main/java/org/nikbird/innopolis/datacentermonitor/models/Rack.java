@@ -1,8 +1,9 @@
 package org.nikbird.innopolis.datacentermonitor.models;
 
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IRack;
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServer;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IRack;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
 
+import java.util.Arrays;
 import java.util.Iterator;
 
 
@@ -100,12 +101,7 @@ public class Rack implements IRack {
     }
 
     @Override public IServer[] getServers() {
-        IServer[] servers = new IServer[mCount];
-        int i = 0;
-        for(IServer server: mServers)
-            if(server != null)
-                servers[i++] = server;
-        return servers;
+        return Arrays.copyOf(mServers, mServers.length);
     }
 
     private IServer getServerUnchecked(int serverIndex) { return mServers[serverIndex]; }

@@ -1,176 +1,191 @@
 package org.nikbird.innopolis.datacentermonitor.activities;
 
-import android.os.Bundle;
+import android.content.ComponentName;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.os.IBinder;
 import android.support.constraint.ConstraintLayout;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.GridLayout;
 import android.widget.ImageButton;
-import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import org.nikbird.innopolis.datacentermonitor.LocalDataCenter;
 import org.nikbird.innopolis.datacentermonitor.R;
-import org.nikbird.innopolis.datacentermonitor.abstractclasses.ActivityListener;
 import org.nikbird.innopolis.datacentermonitor.interfaces.IDataCenter;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IRack;
 import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
+import org.nikbird.innopolis.datacentermonitor.services.ServiceDataCenter;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-public class ActivityDataCenter extends ActivityListener implements View.OnClickListener {
+public class ActivityDataCenter extends AppCompatActivity implements IDataCenter.IListener, View.OnClickListener {
 
-    ConstraintLayout mDataCenterLayout;
-    private Map<IServer, View> mServerViews;
+    private ServiceConnection mConnection = new ServiceConnection() {
+        @Override public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
+            ServiceDataCenter.LocalBinder binder = (ServiceDataCenter.LocalBinder) iBinder;
+            mDataCenter = binder.getDataCenter();
+            mDataCenter.setEventListener(ActivityDataCenter.this);
+            onReplicationEvent();
+        }
 
-    private List<ViewGroup> mRackViews;
+        @Override public void onServiceDisconnected(ComponentName componentName) {}
+    };
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    private IDataCenter mDataCenter;
+
+    @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_data_center);
+
+        bindService(new Intent(getApplicationContext(), ServiceDataCenter.class), mConnection, BIND_AUTO_CREATE);
     }
 
-    @Override
-    public void onServerStateChanged(IServer server, IServer.State statePrev) {
-        ImageButton serverView = (ImageButton) mServerViews.get(server);
-        switch (server.getState()) {
-            case FAIL:
-                serverView.setImageResource(R.drawable.server_fail_120);
-                break;
-            case GOOD:
-                serverView.setImageResource(R.drawable.server_ok_120);
-                break;
+    @Override protected void onDestroy() {
+        super.onDestroy();
+        if (mDataCenter != null) {
+            mDataCenter.removeEventListener(this);
+            unbindService(mConnection);
         }
     }
 
-    private ImageButton newButton(int imageResId) {
-        ImageButton button = new ImageButton(this);
+    @Override public void onAuthenticationEvent() {}
+    @Override public void onServerAdded(IServer server) {}
+    @Override public void onServerRemoved(IServer server, IServer.ServerPosition prevPosition) {}
 
-        button.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        button.setAdjustViewBounds(true);
+    @Override public void onServerStateChanged(IServer server, IServer.State prevState) {
+        if (server.state() == prevState)
+            return;
+        try {
+            RackView rackView = mRackViews.get(server.position().rack());
+            ImageButton serverView = (ImageButton) rackView.serverViews()[server.position().index()];
+            switch (server.state()) {
+                case FAIL:
+                    serverView.setImageResource(R.drawable.server_fail_120);
+                    break;
+                case GOOD:
+                    serverView.setImageResource(R.drawable.server_ok_120);
+                    break;
+            }
+        } catch (IndexOutOfBoundsException e) {
 
-        button.setImageResource(imageResId);
-        button.setId(View.generateViewId());
-        return button;
+        }
     }
 
-    public ConstraintLayout createRackView(int rackId) {
-        ConstraintLayout rackView = new ConstraintLayout(this);
-        rackView.setBackgroundResource(R.color.colorRack);
-        rackView.setId(rackId);
-        return rackView;
+    private class RackView {
+        private ViewGroup mViewGroup;
+        private View[] mServerViews;
+
+        public RackView(final ViewGroup viewGroup, final View[] serverViews) {
+            mViewGroup = viewGroup;
+            mServerViews = serverViews;
+        }
+        public ViewGroup viewGroup() { return mViewGroup; }
+        public View[] serverViews() { return mServerViews; }
     }
 
-    public void addNewRackView2Rows() {
-        int rackId = View.generateViewId();
-        ConstraintLayout rackView = createRackView(rackId);
-        mRackViews.add(rackView);
+    private Map<IRack, RackView> mRackViews;
+    private Map<Integer, IServer> mServers;
+
+    @Override public void onReplicationEvent() {
+        if (!mDataCenter.isReplicationComplete()) {
+            String errorMsg = mDataCenter.replicationErrorMessage();
+            if (errorMsg != null) {
+                Toast.makeText(this, mDataCenter.replicationErrorMessage(), Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+
+        GridLayout serverRoomLayout = (GridLayout) findViewById(R.id.ltServerRoomGrid);
+        mRackViews = new HashMap<>();
+        mServers = new HashMap<>();
+        int index = 0;
+        for (IRack rack : mDataCenter.rackIterable()) {
+            RackView rackView;
+            if (rack == null) {
+                rackView = new RackView(new ConstraintLayout(this), null);
+                rackView.viewGroup().setVisibility(View.INVISIBLE);
+            } else {
+                rackView = createRackView(rack);
+                mRackViews.put(rack, rackView);
+            }
+            serverRoomLayout.addView(rackView.viewGroup(), index, rackParams(rack, serverRoomLayout, rackView));
+            index++;
+        }
+    }
+
+    private GridLayout.LayoutParams rackParams(IRack rack, GridLayout serverRoomLayout, RackView rackView) {
+        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+        params.setMargins(16,16,16,16);
+        params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+        params.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+        return params;
+    }
+
+    private RackView createRackView(IRack rack) {
+        ConstraintLayout viewGroup = new ConstraintLayout(this);
+        viewGroup.setBackgroundResource(R.color.colorRack);
+        viewGroup.setId(View.generateViewId());
+        View[] serverViews = new View[rack.capacity()];
 
         ConstraintLayout.LayoutParams params = new ConstraintLayout.LayoutParams(
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.topToTop = viewGroup.getId();
+        params.leftToLeft = viewGroup.getId();
+        params.rightToRight = viewGroup.getId();
+        TextView tvRackNumber = new TextView(this);
+        tvRackNumber.setId(View.generateViewId());
+        tvRackNumber.setText("Стойка № " + (rack.position().rackIndex() + 1));
+        viewGroup.addView(tvRackNumber, params);
 
-        if (mRackViews.size() == 1) {
-            params.topToTop = mDataCenterLayout.getId();
-            params.leftToLeft = mDataCenterLayout.getId();
-            params.topMargin = 20;
-            params.leftMargin = 20;
+        int index = 0;
+        for (IServer server : rack) {
+            ImageButton serverView = new ImageButton(this);
+            serverView.setOnClickListener(this);
+            serverView.setId(View.generateViewId());
+            int resId = R.drawable.server_empty_120;
+            if (server != null)
+                switch (server.state()) {
+                    case GOOD:
+                        resId = R.drawable.server_ok_120;
+                        break;
+                    case FAIL:
+                        resId = R.drawable.server_fail_120;
+                        break;
+                    default:
+                        break;
+                }
+            serverView.setImageResource(resId);
+            mServers.put(serverView.getId(), server);
+            params = new ConstraintLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            params.leftToLeft = viewGroup.getId();
+            params.rightToRight = viewGroup.getId();
+            if (index == 0)
+                params.topToBottom = tvRackNumber.getId();
+            else
+                params.topToBottom = serverViews[index - 1].getId();
+            viewGroup.addView(serverView, params);
+            serverViews[index] = serverView;
+            index++;
+        }
+        return new RackView(viewGroup, serverViews);
+    }
+
+    @Override public void onClick(View view) {
+        ImageButton imageButton = (ImageButton) view;
+        IServer server = mServers.get(view.getId());
+        String msg;
+        if (server != null) {
+            msg = "Стойка: " + server.position().rack().position().rackIndex()
+                    + "\nСервер: " + server.position().index();
         } else {
-            int div2Rem = mRackViews.size() % 2;
-            if (div2Rem == 0) { // стойка во второй колонке
-                ViewGroup leftRackView = mRackViews.get(mRackViews.size() - 2);
-                params.topToTop = leftRackView.getId();
-                params.bottomToBottom = leftRackView.getId();
-                params.leftToRight = leftRackView.getId();
-                params.leftMargin = 20;
-            } else { // стойка в первой колонке
-                ViewGroup topRackView = mRackViews.get(mRackViews.size() - 3);
-                params.topToBottom = topRackView.getId();
-                params.leftToLeft = topRackView.getId();
-                params.rightToRight = topRackView.getId();
-                params.topMargin = 20;
-                params.bottomMargin = 20;
-            }
+            msg = "Здесь нет сервера";
         }
-        mDataCenterLayout.addView(rackView, params);
-    }
-
-
-    public ImageButton createServerView(IServer server) {
-        ImageButton serverView;
-
-        if (server.getState() == IServer.State.GOOD)
-            serverView = newButton(R.drawable.server_ok_120);
-        else
-            serverView = newButton(R.drawable.server_fail_120);
-
-        serverView.setOnClickListener(this);
-        return serverView;
-    }
-
-    public void insertServersInRack(ViewGroup rackView, IServer[] servers) {
-        View topServerView = null;
-        IServer server;
-
-        for(int serverNum = 1, maxCount = servers.length; serverNum <= maxCount; serverNum++) {
-            server = servers[serverNum - 1];
-            if (server == null)
-                continue;
-            ImageButton serverView = (ImageButton) mServerViews.get(server);
-            ConstraintLayout.LayoutParams params = new ConstraintLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            if (topServerView == null) {
-                params.topToTop = rackView.getId();
-                params.leftToLeft = rackView.getId();
-            } else {
-                params.topToBottom = topServerView.getId();
-                params.leftToLeft = topServerView.getId();
-            }
-            rackView.addView(serverView, params);
-            topServerView = serverView;
-        }
-    }
-
-    @Override
-    public void onReplicationComplete(IDataCenter dataCenter) {
-        setContentView(R.layout.activity_data_center);
-        mServerViews = new HashMap<>();
-        mRackViews = new ArrayList<>();
-
-        mDataCenterLayout = (ConstraintLayout) findViewById(R.id.ltDataCenterRoom);
-        int rackCount = mDataCenter.getRackCount();
-        int rackCapacity = mDataCenter.getRackCapacity();
-
-        // создаем вьюшки для стоек
-        List<IServer[]> racks = new ArrayList<>(rackCount);
-        for(int rackNum = 1; rackNum <= rackCount; rackNum++) {
-            addNewRackView2Rows();
-            racks.add(new IServer[rackCapacity]);
-        }
-
-        // создаем вьюшки для серверов в стойках
-        for(IServer server: mDataCenter) {
-            int rackNum = server.getRackNumber();
-            int serverNum = server.getNumber();
-            racks.get(rackNum - 1)[serverNum - 1] = server;
-            ImageButton serverView = createServerView(server);
-            mServerViews.put(server, serverView);
-        }
-
-        // добавляем сервера в стойки
-        for(int rackNum = 1; rackNum <= rackCount; rackNum++) {
-            insertServersInRack(mRackViews.get(rackNum - 1), racks.get(rackNum - 1));
-        }
-        mDataCenter.setEventListener(this);
-    }
-
-    public void onClick(View view) {
-        for(Map.Entry<IServer, View> entry: mServerViews.entrySet()) {
-            if (entry.getValue() == view) {
-                IServer server = entry.getKey();
-                ((LocalDataCenter)mDataCenter).testServerStateChanged(server);
-                break;
-            }
-        }
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 }

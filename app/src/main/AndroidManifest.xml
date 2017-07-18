@@ -18,18 +18,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".activities.ActivityDataCenter" />
 
-        <service
-            android:name=".services.ServiceDataCenterListener"
-            android:enabled="true"
-            android:exported="false" />
         <service
             android:name=".services.ServiceDataCenter"
             android:enabled="true"
             android:exported="false" />
 
-        <activity android:name=".activities.newgen.ActivityDataCenter"></activity>
+        <activity android:name=".activities.ActivityDataCenter"></activity>
     </application>
 
 </manifest>

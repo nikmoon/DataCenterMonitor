@@ -14,9 +14,8 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import org.nikbird.innopolis.datacentermonitor.R;
-import org.nikbird.innopolis.datacentermonitor.activities.newgen.ActivityDataCenter;
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IDataCenter;
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServer;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IDataCenter;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
 import org.nikbird.innopolis.datacentermonitor.services.ServiceDataCenter;
 
 public class ActivityLogin extends AppCompatActivity implements IDataCenter.IListener {
@@ -25,7 +24,6 @@ public class ActivityLogin extends AppCompatActivity implements IDataCenter.ILis
         @Override public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             ServiceDataCenter.LocalBinder binder = (ServiceDataCenter.LocalBinder) iBinder;
             mDataCenter = binder.getDataCenter();
-            mDataCenter.setEventListener(ActivityLogin.this);
             mLoginButton.setEnabled(true);
         }
 
@@ -45,8 +43,7 @@ public class ActivityLogin extends AppCompatActivity implements IDataCenter.ILis
 
     private IDataCenter mDataCenter;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
@@ -69,10 +66,27 @@ public class ActivityLogin extends AppCompatActivity implements IDataCenter.ILis
         mLayoutLoginFields.setVisibility(View.VISIBLE);
     }
 
+    @Override protected void onStart() {
+        super.onStart();
+    }
+
+    @Override protected void onStop() {
+        super.onStop();
+        if (mDataCenter != null)
+            mDataCenter.removeEventListener(this);
+    }
+
+    @Override protected void onDestroy() {
+        super.onDestroy();
+        if (mConnection != null)
+            unbindService(mConnection);
+    }
+
     public void onLoginClick(final View view) {
         if (isLoginDataValid()) {
             mLayoutLoginFields.setVisibility(View.INVISIBLE);
             mProgressBar.setVisibility(View.VISIBLE);
+            mDataCenter.setEventListener(this);
             mDataCenter.authentication(mUsername, mPassword, mUrl);
         }
     }

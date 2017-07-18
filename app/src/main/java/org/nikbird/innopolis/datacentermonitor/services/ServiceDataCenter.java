@@ -7,10 +7,12 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.widget.Toast;
 
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IDataCenter;
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IRack;
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServer;
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServerRoom;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IDataCenter;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IRack;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IServerRoom;
+import org.nikbird.innopolis.datacentermonitor.models.Rack;
+import org.nikbird.innopolis.datacentermonitor.models.Server;
 import org.nikbird.innopolis.datacentermonitor.models.ServerRoom;
 
 import java.io.BufferedReader;
@@ -23,6 +25,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -61,6 +65,9 @@ public class ServiceDataCenter extends Service implements IDataCenter {
     }
 
     @Override public boolean onUnbind(Intent intent) {
+        mInterruptWaiting = true;
+        Toast.makeText(this, "Waiting thread will stopped", Toast.LENGTH_SHORT);
+        stopSelf();
         return super.onUnbind(intent);
     }
 
@@ -151,7 +158,27 @@ public class ServiceDataCenter extends Service implements IDataCenter {
                 try {
                     if (mRequestErrorMsg == null) {
                         mServerRoom = new ServerRoom(Integer.valueOf(mResponse.get(0).split(":")[1]));
+                        for(int i = 1; i < mResponse.size(); i++) {
+                            String line = mResponse.get(i);
+                            if (line.startsWith("rack")) {
+                                String[] values = line.split(":");
+                                IRack rack = new Rack(Integer.valueOf(values[2]));
+                                if (!mServerRoom.insertRack(rack, Integer.valueOf(values[1])))
+                                    throw new Exception("cant insert rack in server room");
+                                for(int j = 0; j < rack.capacity(); j++) {
+                                    i++;
+                                    line = mResponse.get(i);
+                                    Server server = new Server(IServer.State.valueOf(line));
+                                    if (!rack.insertServer(server, j))
+                                        throw new Exception("cant insert server in rack");
+                                }
+                            }
+                        }
                         mReplicationComplete = true;
+                        mReplicationInProgress = false;
+
+                        if (!mWaitInProgress)
+                            waitRemoteEvent();
                     } else
                         mReplicationErrorMsg = mRequestErrorMsg;
                 } catch (Exception e) {
@@ -160,13 +187,14 @@ public class ServiceDataCenter extends Service implements IDataCenter {
                 finally {
                     mRequestResultLock.readLock().unlock();
                 }
-                mHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        replicate();
-                    }
-                }, 10000);
-                notifyReplicationComplete();
+                if (mReplicationErrorMsg != null)
+                    mHandler.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            replicate();
+                        }
+                    }, 10000);
+                notifyReplicationEvent();
             }
         };
         if ("http".equals(mUrl.getProtocol())) {
@@ -179,6 +207,7 @@ public class ServiceDataCenter extends Service implements IDataCenter {
     @Override public boolean hasProblem() { return mProblemServers.size() > 0; }
     @Override public List<IServer> getProblemServers() { return mProblemServers; }
     @Override public Iterable<IRack> rackIterable() { return mServerRoom; }
+    @Override public int countRacks() { return mServerRoom.countRacks(); }
 
     private String mRequestErrorMsg;
     private int mResponseStatus;
@@ -191,8 +220,7 @@ public class ServiceDataCenter extends Service implements IDataCenter {
             private String mLine;
             private BufferedReader mReader;
 
-            @Override
-            public void run() {
+            @Override public void run() {
                 mRequestErrorMsg = null;
                 try {
                     mRequestResultLock.writeLock().lock();
@@ -223,14 +251,131 @@ public class ServiceDataCenter extends Service implements IDataCenter {
         }).start();
     }
 
+
+    private BlockingQueue<String> mEventQueue = new ArrayBlockingQueue<String>(10);
+
+    private volatile boolean mWaitInProgress;
+    private volatile boolean mInterruptWaiting;
+    private URL mWaitEventUrl;
+
+    private void onEvent() {
+        String event;
+        try {
+            event = mEventQueue.take();
+        } catch (InterruptedException e) {
+            throw new Error("Event queue interrupted");
+        }
+
+        if (event.startsWith("error:") || event.startsWith("clienterror:")) {
+            Toast.makeText(this, event, Toast.LENGTH_SHORT).show();
+        }
+        else {
+            String[] eventParams = event.split(":");
+            switch (eventParams[0]) {
+                case "server":
+                    int rackNum = Integer.valueOf(eventParams[1]);
+                    int serverNum = Integer.valueOf(eventParams[2]);
+                    IServer.State state = IServer.State.valueOf(eventParams[3]);
+                    IRack rack = mServerRoom.getRack(rackNum);
+                    IServer server = rack.getServer(serverNum);
+                    IServer.State prevState = server.state();
+                    server.setState(state);
+                    notifyServerStateChanged(server, prevState);
+                    break;
+            }
+        }
+
+        if (!mWaitInProgress)
+            waitRemoteEvent();
+    }
+
+    public static final int WAIT_DURATION = 5000;
+
+    private void waitRemoteEvent() {
+        if (mWaitEventUrl == null)
+            try {
+                mWaitEventUrl= new URL(mUrl, "/event");
+            } catch (MalformedURLException e) {
+                try {
+                    mEventQueue.put("clienterror:URL exception: " + e.toString());
+                    mHandler.post(new Runnable() { @Override public void run() { onEvent(); } });
+                } catch (InterruptedException e1) {
+                    throw new Error("Event queue interrupted");
+                }
+                return;
+            }
+
+        new Thread(new Runnable() {
+            @Override public void run() {
+                mWaitInProgress = true;
+                while (true) {
+                    if (mInterruptWaiting) {
+                        mWaitInProgress = false;
+                        break;
+                    }
+
+                    long startWaiting = System.currentTimeMillis();
+                    try {
+                        HttpURLConnection conn = (HttpURLConnection) mWaitEventUrl.openConnection();
+
+                        conn.setDoOutput(true);
+                        Writer writer = new OutputStreamWriter(conn.getOutputStream());
+                        writer.write("token:" + mAuthToken + "\n");
+                        writer.close();
+
+                        int responseStatus = conn.getResponseCode();
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                        String event = reader.readLine();
+                        try {
+                            mEventQueue.put(event);
+                            mHandler.post(new Runnable() { @Override public void run() { onEvent(); } });
+                        } catch (InterruptedException e1) {
+                            throw new Error("Event queue interrupted");
+                        }
+                        if (event.startsWith("servererror:")) {
+                            long waitDuration = System.currentTimeMillis() - startWaiting;
+                            if (waitDuration < WAIT_DURATION)
+                                try {
+                                    Thread.sleep(WAIT_DURATION - waitDuration);
+                                } catch (InterruptedException e1) {
+
+                                }
+                        }
+                    } catch (IOException e) {
+                        try {
+                            mEventQueue.put("clienterror:" + e.toString());
+                            mHandler.post(new Runnable() { @Override public void run() { onEvent(); } });
+                        } catch (InterruptedException e1) {
+                            throw new Error("Event queue interrupted");
+                        }
+                        long waitDuration = System.currentTimeMillis() - startWaiting;
+                        if (waitDuration < WAIT_DURATION) {
+                            try {
+                                Thread.sleep(WAIT_DURATION - waitDuration);
+                            } catch (InterruptedException e1) {
+
+                            }
+                        }
+                    }
+                }
+            }
+        }).start();
+    }
+
     private void notifyAuthenticationEvent() {
         for (IListener subscriber : mSubscribers)
             subscriber.onAuthenticationEvent();
     }
 
-    private void notifyReplicationComplete() {
+    private void notifyReplicationEvent() {
         for (IListener subscriber : mSubscribers) {
             subscriber.onReplicationEvent();
+        }
+    }
+
+    private void notifyServerStateChanged(IServer server, IServer.State prevState) {
+        for (IListener subscriber : mSubscribers) {
+            subscriber.onServerStateChanged(server, prevState);
         }
     }
 }

@@ -1,9 +1,10 @@
 package org.nikbird.innopolis.datacentermonitor.models;
 
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IRack;
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServer;
-import org.nikbird.innopolis.datacentermonitor.interfaces.newgen.IServerRoom;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IRack;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IServer;
+import org.nikbird.innopolis.datacentermonitor.interfaces.IServerRoom;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -58,12 +59,7 @@ public class ServerRoom implements IServerRoom {
     @Override public IRack getRack(int rackIndex) { return getRackUnchecked(rackIndex); }
 
     @Override public IRack[] getRacks() {
-        IRack[] racks = new IRack[mCount];
-        int i = 0;
-        for(IRack rack: mRacks)
-            if (rack != null)
-                racks[i++] = rack;
-        return racks;
+        return Arrays.copyOf(mRacks, mRacks.length);
     }
 
     @Override
