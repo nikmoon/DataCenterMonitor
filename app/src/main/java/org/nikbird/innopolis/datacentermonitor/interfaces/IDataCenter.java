@@ -17,6 +17,7 @@ public interface IDataCenter {
     }
 
     void authentication(String username, String password, String url);
+    void resetAuthentication();
     boolean isAuthenticated();
     String authErrorMessage();
 

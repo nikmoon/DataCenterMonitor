@@ -40,10 +40,10 @@ public class ServiceDataCenter extends Service implements IDataCenter {
     private final IBinder mBinder = new LocalBinder();
     private URL mUrl;
     private String mAuthToken;
-    private boolean mAuthenticated;
+    private volatile boolean mAuthenticated;
 
     private List<IListener> mSubscribers;
-    private boolean mReplicationComplete;
+    private volatile boolean mReplicationComplete;
     private List<IServer> mProblemServers;
 
     private IServerRoom mServerRoom;
@@ -95,6 +95,12 @@ public class ServiceDataCenter extends Service implements IDataCenter {
 
     private String mAuthErrorMessage;
     @Override public String authErrorMessage() { return mAuthErrorMessage; }
+
+    @Override public void resetAuthentication() {
+        mAuthToken = "";
+        mAuthenticated = false;
+        mInterruptWaiting = true;
+    }
 
     @Override public void authentication(String username, String password, String urlString) {
         mAuthenticated = false;
@@ -338,7 +344,6 @@ public class ServiceDataCenter extends Service implements IDataCenter {
                                 try {
                                     Thread.sleep(WAIT_DURATION - waitDuration);
                                 } catch (InterruptedException e1) {
-
                                 }
                         }
                     } catch (IOException e) {
@@ -353,7 +358,6 @@ public class ServiceDataCenter extends Service implements IDataCenter {
                             try {
                                 Thread.sleep(WAIT_DURATION - waitDuration);
                             } catch (InterruptedException e1) {
-
                             }
                         }
                     }

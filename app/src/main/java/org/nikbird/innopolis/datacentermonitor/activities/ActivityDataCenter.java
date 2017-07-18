@@ -49,6 +49,7 @@ public class ActivityDataCenter extends AppCompatActivity implements IDataCenter
         super.onDestroy();
         if (mDataCenter != null) {
             mDataCenter.removeEventListener(this);
+            mDataCenter.resetAuthentication();
             unbindService(mConnection);
         }
     }
